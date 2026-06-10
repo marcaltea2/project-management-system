@@ -237,7 +237,7 @@ export function CreateProjectDialog({
       dueDate,
       coverColor,
       members: members.map((m) => m.id),
-    });
+    }); 
   };
 
   const syncAttachments = async (projectId: string) => {

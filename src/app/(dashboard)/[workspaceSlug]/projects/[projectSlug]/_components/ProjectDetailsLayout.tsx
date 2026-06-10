@@ -6,7 +6,6 @@ import { ProjectTabs } from "./ProjectTabs";
 import { DetailsTab } from "./tabs/DetailsTab";
 import { AttachmentsTab } from "./tabs/AttachmentsTab";
 import { MembersTab } from "./tabs/MembersTab";
-import { InviteMembersTab } from "./tabs/InviteMembersTab";
 import { TasksTab } from "./tabs/TasksTab";
 import { api } from "~/trpc/react";
 import { Skeleton } from "~/components/ui/skeleton";

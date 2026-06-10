@@ -19,6 +19,13 @@ import {
 
 import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+
 import type { ProjectData } from "~/types";
 
 import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
@@ -26,13 +33,12 @@ import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
 import { formatDistanceToNow } from "date-fns";
 
 export function ProjectHeader({ project }: { project: ProjectData }) {
-
   const visibleMembers = project.members?.slice(0, 3) ?? [];
   const remainingCount = Math.max(
     (project.members?.length ?? 0) - visibleMembers.length,
     0,
   );
-  
+
   return (
     <div className="border-border bg-background border-b px-6 pt-5 pb-0">
       {/* Breadcrumb */}
@@ -83,27 +89,34 @@ export function ProjectHeader({ project }: { project: ProjectData }) {
           </span>
 
           {/* Avatars */}
-          <div className="flex -space-x-2">
-            {visibleMembers.map((member) => (
-              <Avatar
-                key={member.id}
-                className="border-background h-7 w-7 border"
-              >
-                <AvatarImage src={member.user?.image ?? ""} />
-                <AvatarFallback className="text-[8px]">
-                  {member.user?.name?.slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            ))}
+          <TooltipProvider>
+            <div className="flex -space-x-2">
+              {visibleMembers.map((member) => (
+                <Tooltip key={member.id}>
+                  <TooltipTrigger asChild>
+                    <Avatar className="border-background h-7 w-7 border">
+                      <AvatarImage src={member.user?.image ?? ""} />
+                      <AvatarFallback className="text-[8px]">
+                        {member.user?.name?.slice(0, 2).toUpperCase()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </TooltipTrigger>
 
-            {remainingCount > 0 && (
-              <Avatar className="border-background h-7 w-7 border">
-                <AvatarFallback className="text-[8px]">
-                  +{remainingCount}
-                </AvatarFallback>
-              </Avatar>
-            )}
-          </div>
+                  <TooltipContent>
+                    <p>{member.user?.name}</p>
+                  </TooltipContent>
+                </Tooltip>
+              ))}
+
+              {remainingCount > 0 && (
+                <Avatar className="border-background h-7 w-7 border">
+                  <AvatarFallback className="text-[8px]">
+                    +{remainingCount}
+                  </AvatarFallback>
+                </Avatar>
+              )}
+            </div>
+          </TooltipProvider>
 
           {/* Invite */}
           <Button size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
