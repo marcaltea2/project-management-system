@@ -42,7 +42,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { toSlug } from "~/lib/to-slug";
 import type { ProjectStatus, Priority } from "@prisma/client";
 import {
-  STATUS_OPTIONS,
+  PROJECT_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
 } from "~/lib/project-options";
 import type { ProjectListItem  } from "~/types";
@@ -243,7 +243,7 @@ export function ProjectList({ workspaceId }: Props) {
                     className={cn("text-[10px]", statusColor(project.status))}
                   >
                     {
-                      STATUS_OPTIONS.find((s) => s.value === project.status)
+                      PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)
                         ?.label
                     }
                   </Badge>

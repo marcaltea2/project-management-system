@@ -13,7 +13,7 @@ import {
   UserPlus,
   Plus,
 } from "lucide-react";
-import { ProjectStatus, Priority } from "@prisma/client";
+import { Priority, TaskStatus } from "@prisma/client";
 
 // ===== UI Components =====
 import {
@@ -50,21 +50,16 @@ import { toast } from "sonner";
 // ===== Lib =====
 import { cn } from "~/lib/utils";
 import { toBase64 } from "~/lib/to-base-64";
-import { toSlug } from "~/lib/to-slug";
 import {
   ALL_ATTACHMENT_ACCEPT,
   ALL_ATTACHMENT_TYPES,
 } from "~/lib/constants/file-types";
-import {
-  PROJECT_STATUS_OPTIONS,
-  PRIORITY_OPTIONS,
-  COLOR_OPTIONS,
-} from "~/lib/project-options";
+import { TASK_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
 import { getFileIcon } from "~/lib/helper/get-file-icon";
 import { truncateFileName } from "~/lib/helper/truncate-filename";
 
 // ===== Types =====
-import type { ProjectListItem, ProjectAttachmentData, SelectedMember } from "~/types";
+import type { TaskListItem, TaskAttachmentData, SelectedMember } from "~/types";
 
 // ===== Internal Components =====
 import { MemberCombobox } from "./member-combobox";
@@ -76,49 +71,44 @@ import { MemberCombobox } from "./member-combobox";
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  workspaceId: string;
-  project?: ProjectListItem | null;
+  projectId: string;
+  task?: TaskListItem | null;
 };
 
 // ============================================================
 // Component
 // ============================================================
 
-export function CreateProjectDialog({
+export function CreateTaskDialog({
   open,
   onOpenChange,
-  workspaceId,
-  project,
+  projectId,
+  task,
 }: Props) {
   // ===== Setup =====
-  const isEdit = !!project;
+  const isEdit = !!task;
   const utils = api.useUtils();
 
   // ===== State: Form Fields =====
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [status, setStatus] = useState<ProjectStatus>(ProjectStatus.ACTIVE);
+  const [status, setStatus] = useState<TaskStatus>(TaskStatus.TODO);
   const [priority, setPriority] = useState<Priority>(Priority.MEDIUM);
   const [dueDate, setDueDate] = useState<Date | undefined>();
-  const [coverColor, setCoverColor] = useState("#6366f1");
 
   // ===== State: Attachments =====
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<File[]>([]);
-  const [existingAttachments, setExistingAttachments] = useState<ProjectAttachmentData[]>(
-    [],
-  );
-  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>(
-    [],
-  );
+  const [existingAttachments, setExistingAttachments] = useState<TaskAttachmentData[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = useState<string[]>([],);
 
   // ===== State: Team =====
   const [members, setMembers] = useState<SelectedMember[]>([]);
   const [memberPopoverOpen, setMemberPopoverOpen] = useState(false);
 
   // ===== Queries =====
-  const { data: workspaceMembers } = api.workspace.getMembers.useQuery(
-    { workspaceId },
+  const { data: projectMembers } = api.project.getMembers.useQuery(
+    { projectId },
     { enabled: open },
   );
 
@@ -127,39 +117,38 @@ export function CreateProjectDialog({
   const deleteAttachment = api.attachments.delete.useMutation({
     onError: (err) => toast.error(err.message),
   });
-  const createProject = api.project.create.useMutation({
+  const createTask = api.task.create.useMutation({
     onError: (err) => toast.error(err.message),
   });
-  const updateProject = api.project.update.useMutation({
+  const updateTask = api.task.update.useMutation({
     onError: (err) => toast.error(err.message),
   });
 
   const isPending =
-    createProject.isPending ||
-    updateProject.isPending ||
+    createTask.isPending ||
+    updateTask.isPending ||
     uploadFile.isPending ||
     deleteAttachment.isPending;
 
   // ===== Effects =====
   useEffect(() => {
-    if (project && open) {
-      setName(project.name);
-      setDescription(project.description ?? "");
-      setStatus(project.status);
-      setPriority(project.priority);
-      setDueDate(project.dueDate ?? undefined);
-      setCoverColor(project.coverColor ?? "#6366f1");
+    if (task && open) {
+      setName(task.name);
+      setDescription(task.description ?? "");
+      setStatus(task.status);
+      setPriority(task.priority);
+      setDueDate(task.dueDate ?? undefined);
       setMembers(
-        project.members.map((m) => ({
-          id: m.userId,
-          name: m.user?.name ?? null,
+        task.members.map((m) => ({
+          id: m.id,
+          name: m.user?.name ?? "null",
           image: m.user?.image ?? null,
           email: m.user?.email ?? null,
         })),
       );
-      setExistingAttachments(project.attachments ?? []);
+      setExistingAttachments(task.attachments ?? []);
     }
-  }, [project, open]);
+  }, [task, open]);
 
   // ===== Handlers: Files =====
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,10 +189,9 @@ export function CreateProjectDialog({
   const handleClose = () => {
     setName("");
     setDescription("");
-    setStatus(ProjectStatus.ACTIVE);
+    setStatus(TaskStatus.TODO);
     setPriority(Priority.MEDIUM);
     setDueDate(undefined);
-    setCoverColor("#6366f1");
     setFiles([]);
     setMembers([]);
     setExistingAttachments([]);
@@ -213,63 +201,52 @@ export function CreateProjectDialog({
   };
 
   // ===== Handlers: Submit Helpers =====
-  const saveProject = async () => {
-    if (isEdit && project) {
-      return updateProject.mutateAsync({
-        id: project.id,
+  const saveTask = async () => {
+    if (isEdit && task) {
+      return updateTask.mutateAsync({
+        id: task.id,
         name,
-        slug: toSlug(name),
         description,
         status,
         priority,
         dueDate,
-        coverColor,
       });
     }
 
-    return createProject.mutateAsync({
-      workspaceId,
+    return createTask.mutateAsync({
+      projectId,
       name,
-      slug: toSlug(name),
       description,
       status,
       priority,
       dueDate,
-      coverColor,
       members: members.map((m) => m.id),
-    }); 
+    });
   };
-
-  const syncAttachments = async (projectId: string) => {
-    // Delete removed attachments from R2 + DB
+  const syncAttachments = async (taskId: string) => {
     for (const id of removedAttachmentIds) {
       await deleteAttachment.mutateAsync({ id });
     }
-
-    // Upload new attachments
     for (const file of files) {
       const base64 = await toBase64(file);
       await uploadFile.mutateAsync({
         filename: file.name,
         fileData: base64,
         mimeType: file.type,
-        folder: "projects",
-        projectId,
+        folder: "tasks",
+        taskId: taskId, // your upload router likely takes projectId; adjust if it takes taskId
       });
     }
   };
 
-  // ===== Handlers: Main Submit =====
   const handleSubmit = async () => {
     if (!name.trim()) return;
-
     try {
-      const result = await saveProject();
+      const result = await saveTask();
       await syncAttachments(result.id);
-      await utils.project.invalidate();
-
+      await utils.task.invalidate(); // ← was utils.project.invalidate()
       handleClose();
-      toast.success(isEdit ? "Project updated!" : "Project created!");
+      toast.success(isEdit ? "Task updated!" : "Task created!");
     } catch (err) {
       toast.error("Something went wrong.");
       console.error(err);
@@ -282,16 +259,13 @@ export function CreateProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className="sm:max-w-md"
-        style={{ borderTop: `5px solid ${coverColor}` }}
-      >
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{isEdit ? "Edit Project" : "New Project"}</DialogTitle>
+          <DialogTitle>{isEdit ? "Edit Task" : "New Task"}</DialogTitle>
           <DialogDescription>
             {isEdit
-              ? "Update your project details."
-              : "Create a new project for your workspace."}
+              ? "Update your task details."
+              : "Create a new task for your project."}
           </DialogDescription>
         </DialogHeader>
 
@@ -300,7 +274,7 @@ export function CreateProjectDialog({
           <div className="grid items-center gap-4 md:grid-cols-[140px_1fr]">
             <Label>Name</Label>
             <Input
-              placeholder="Project name"
+              placeholder="Task name"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -313,7 +287,7 @@ export function CreateProjectDialog({
               <span className="text-muted-foreground text-xs">(optional)</span>
             </Label>
             <Textarea
-              placeholder="What is this project about?"
+              placeholder="What is this task about?"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
@@ -453,7 +427,7 @@ export function CreateProjectDialog({
                     </PopoverTrigger>
                     <PopoverContent className="w-64 p-0" align="start">
                       <MemberCombobox
-                        workspaceMembers={workspaceMembers ?? []}
+                        projectMembers={projectMembers ?? []}
                         selectedIds={members.map((m) => m.id)}
                         onSelect={handleAddMember}
                       />
@@ -481,7 +455,7 @@ export function CreateProjectDialog({
                   </PopoverTrigger>
                   <PopoverContent className="w-64 p-0" align="start">
                     <MemberCombobox
-                      workspaceMembers={workspaceMembers ?? []}
+                      projectMembers={projectMembers ?? []}
                       selectedIds={members.map((m) => m.id)}
                       onSelect={handleAddMember}
                     />
@@ -496,13 +470,13 @@ export function CreateProjectDialog({
             <Label>Status</Label>
             <Select
               value={status}
-              onValueChange={(v) => setStatus(v as ProjectStatus)}
+              onValueChange={(v) => setStatus(v as TaskStatus)}
             >
               <SelectTrigger className="w-full">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {PROJECT_STATUS_OPTIONS.map((s) => (
+                {TASK_STATUS_OPTIONS.map((s) => (
                   <SelectItem key={s.value} value={s.value}>
                     {s.label}
                   </SelectItem>
@@ -558,28 +532,6 @@ export function CreateProjectDialog({
                 />
               </PopoverContent>
             </Popover>
-          </div>
-
-          {/* Cover Color */}
-          <div className="mb-2 grid items-start gap-4 md:grid-cols-[140px_1fr]">
-            <Label className="pt-1">Cover Color</Label>
-            <div className="flex flex-wrap gap-2">
-              {COLOR_OPTIONS.map((color) => (
-                <button
-                  key={color.value}
-                  type="button"
-                  title={color.label}
-                  onClick={() => setCoverColor(color.value)}
-                  className={cn(
-                    "h-6 w-6 rounded-full transition-all",
-                    coverColor === color.value
-                      ? "ring-offset-background scale-110 ring-2 ring-offset-2"
-                      : "opacity-70 hover:opacity-100",
-                  )}
-                  style={{ backgroundColor: color.value }}
-                />
-              ))}
-            </div>
           </div>
         </div>
 

@@ -28,7 +28,7 @@ import {
 
 import type { ProjectData } from "~/types";
 
-import { STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
+import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
 
 import { formatDistanceToNow } from "date-fns";
 
@@ -67,7 +67,7 @@ export function ProjectHeader({ project }: { project: ProjectData }) {
                 variant="secondary"
                 className="border-emerald-200 bg-emerald-50 px-2 py-0 text-[10px] text-emerald-600 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
               >
-                {STATUS_OPTIONS.find((s) => s.value === project.status)
+                {PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)
                   ?.label ?? project.status}
               </Badge>
               <Badge variant="secondary" className="px-2 py-0 text-[10px]">

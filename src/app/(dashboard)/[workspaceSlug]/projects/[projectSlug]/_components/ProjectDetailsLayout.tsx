@@ -42,7 +42,7 @@ export function ProjectDetailsLayout({ workspaceSlug, projectSlug }: ProjectDeta
       case "details":     return <DetailsTab project={project} />;
       case "attachments": return <AttachmentsTab attachments={project.attachments} />;
       case "members":     return <MembersTab members={project.members} />;
-      case "tasks":       return <TasksTab />;
+      case "tasks":       return <TasksTab projectId={project.id}/>;      
     }
   };
 

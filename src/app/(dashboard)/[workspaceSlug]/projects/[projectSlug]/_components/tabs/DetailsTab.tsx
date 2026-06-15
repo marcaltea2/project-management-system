@@ -6,7 +6,7 @@ import { Progress } from "~/components/ui/progress";
 import type { ProjectData } from "~/types";
 import { format } from "date-fns";
 import {
-  STATUS_OPTIONS,
+  PROJECT_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
 } from "~/lib/project-options";
 
@@ -94,7 +94,7 @@ export function DetailsTab({ project }: { project: ProjectData }) {
           {
             icon: <TrendingUp size={12} />,
             label: "Status",
-            value: STATUS_OPTIONS.find((s) => s.value === project.status)?.label ?? project.status,
+            value: PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)?.label ?? project.status,
             valueClass: "text-emerald-500",
           },
         ].map((item) => (

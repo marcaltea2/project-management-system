@@ -1,10 +1,17 @@
-import { Priority, ProjectStatus } from "@prisma/client";
+import { Priority, ProjectStatus, TaskStatus } from "@prisma/client";
 
-export const STATUS_OPTIONS = [
+export const PROJECT_STATUS_OPTIONS = [
   { value: ProjectStatus.ACTIVE, label: "Active" },
   { value: ProjectStatus.ON_HOLD, label: "On Hold" },
   { value: ProjectStatus.COMPLETED, label: "Completed" },
   { value: ProjectStatus.ARCHIVED, label: "Archived" },
+] as const;
+
+export const TASK_STATUS_OPTIONS = [
+  { value: TaskStatus.IN_REVIEW, label: "In Review" },
+  { value: TaskStatus.TODO, label: "To Do" },
+  { value: TaskStatus.IN_PROGRESS, label: "In Progress" },
+  { value: TaskStatus.DONE, label: "Done" },
 ] as const;
 
 export const PRIORITY_OPTIONS = [

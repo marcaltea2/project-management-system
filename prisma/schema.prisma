@@ -2,17 +2,17 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-    provider = "prisma-client-js"
-    // output   = "../generated/prisma"
+  provider = "prisma-client-js"
+  // output   = "../generated/prisma"
 }
 
 datasource db {
-    provider = "postgresql"
-    // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
-    // Further reading:
-    // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
-    // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
-    url      = env("DATABASE_URL")
+  provider = "postgresql"
+  // NOTE: When using mysql or sqlserver, uncomment the @db.Text annotations in model Account below
+  // Further reading:
+  // https://next-auth.js.org/adapters/prisma#create-the-prisma-schema
+  // https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference#string
+  url      = env("DATABASE_URL")
 }
 
 model Post {
@@ -77,8 +77,10 @@ model User {
   projectInvited    ProjectMember[]   @relation("MemberInviter")
   projectMembers    ProjectMember[]   @relation("MemberUser")
   sessions          Session[]
-  tasksAssigned     Task[]            @relation("TaskAssignee")
   tasksCreated      Task[]            @relation("TaskCreatedBy")
+  tasksUpdated      Task[]            @relation("TaskUpdatedBy")
+  taskInvited       TaskMember[]      @relation("MemberInviter")
+  taskMembers       TaskMember[]      @relation("MemberUser")
   workspacesCreated Workspace[]       @relation("WorkspaceCreatedBy")
   workspacesUpdated Workspace[]       @relation("WorkspaceUpdatedBy")
   membersInvited    WorkspaceMember[] @relation("MemberInviter")
@@ -184,23 +186,39 @@ model Attachment {
 
 model Task {
   id          String       @id @default(cuid())
-  title       String
+  name        String
   description String?
   status      TaskStatus   @default(TODO)
   priority    Priority     @default(MEDIUM)
-  dueDate     DateTime?
   position    Int          @default(0)
+  dueDate     DateTime?
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   projectId   String
-  assigneeId  String?
   createdById String
+  updatedById String?
   attachments Attachment[]
   comments    Comment[]
-  assignee    User?        @relation("TaskAssignee", fields: [assigneeId], references: [id])
   createdBy   User         @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  updatedBy   User?        @relation("TaskUpdatedBy", fields: [updatedById], references: [id])
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  members    TaskMember []
 }
+
+model TaskMember {
+  id          String      @id @default(cuid())
+  taskId      String
+  userId      String
+  invitedById String?
+  role        ProjectRole @default(MEMBER)
+  joinedAt    DateTime    @default(now())
+  invitedBy   User?       @relation("MemberInviter", fields: [invitedById], references: [id])
+  task        Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user        User        @relation("MemberUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
 
 model ActivityLog {
   id        String   @id @default(cuid())
