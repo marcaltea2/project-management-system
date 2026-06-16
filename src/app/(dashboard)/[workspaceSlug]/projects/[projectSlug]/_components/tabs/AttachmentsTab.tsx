@@ -9,14 +9,34 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
-import type { ProjectAttachmentData } from "~/types";
 import { getFileIcon } from "~/lib/helper/get-file-icon";
+import { api } from "~/trpc/react";
+import { Skeleton } from "~/components/ui/skeleton";
 
-export function AttachmentsTab({
-  attachments,
-}: {
-  attachments: ProjectAttachmentData[];
-}) {
+type Props = {
+  projectId: string;
+};
+
+export function AttachmentsTab({ projectId }: Props) {
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+
+  const { data: attachments = [], isLoading } =
+    api.project.getAttachments.useQuery({
+      projectId,
+    });
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       {/* Upload zone */}

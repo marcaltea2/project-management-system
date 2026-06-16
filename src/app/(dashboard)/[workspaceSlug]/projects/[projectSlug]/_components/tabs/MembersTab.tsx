@@ -11,7 +11,6 @@ import {
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
 
-import type { ProjectMemberData } from "~/types";
 import { Avatar, AvatarImage, AvatarFallback } from "~/components/ui/avatar";
 import type { ProjectRole } from "@prisma/client";
 import { format } from "date-fns";
@@ -25,6 +24,8 @@ import {
 import { Send, Link2, X } from "lucide-react";
 import { useState } from "react";
 import { cn } from "~/lib/utils";
+import { api } from "~/trpc/react";
+import { Skeleton } from "~/components/ui/skeleton";
 
 type Invite = {
   email: string;
@@ -32,13 +33,25 @@ type Invite = {
   sent: string;
 };
 
-export function MembersTab({ members }: { members: ProjectMemberData[] }) {
+type Props = {
+  projectId: string;
+};
+
+export function MembersTab({ projectId }: Props) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState("Member");
   const [pending, setPending] = useState<Invite[]>([
     { email: "dev@studio.io", role: "Member", sent: "2d ago" },
     { email: "design@agency.com", role: "Viewer", sent: "5d ago" },
   ]);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────────
+
+  const { data: members = [], isLoading } = api.project.getMembers.useQuery(
+    {
+      projectId,
+    },
+  );
 
   const handleInvite = () => {
     if (!email.trim()) return;
@@ -60,6 +73,18 @@ export function MembersTab({ members }: { members: ProjectMemberData[] }) {
     MEMBER:
       "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400 dark:border-emerald-800",
   };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-12 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">

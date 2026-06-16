@@ -40,8 +40,8 @@ export function ProjectDetailsLayout({ workspaceSlug, projectSlug }: ProjectDeta
   const renderTab = () => {
     switch (activeTab) {
       case "details":     return <DetailsTab project={project} />;
-      case "attachments": return <AttachmentsTab attachments={project.attachments} />;
-      case "members":     return <MembersTab members={project.members} />;
+      case "attachments": return <AttachmentsTab projectId={project.id} />;
+      case "members":     return <MembersTab projectId={project.id} />;
       case "tasks":       return <TasksTab projectId={project.id}/>;      
     }
   };

@@ -126,28 +126,9 @@ export const projectRouter = createTRPCRouter({
               uploadedBy: true,
             },
           },
+          workspace: true,
         },
         orderBy: { createdAt: "desc" },
-      });
-    }),
-
-  getById: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.db.project.findUnique({
-        where: { id: input.id },
-        include: {
-          members: {
-            include: {
-              user: true,
-            },
-          },
-          attachments: {
-            include: {
-              uploadedBy: true,
-            },
-          },
-        },
       });
     }),
 
@@ -167,11 +148,6 @@ export const projectRouter = createTRPCRouter({
               user: true,
             },
           },
-          attachments: {
-            include: {
-              uploadedBy: true,
-            },
-          },
           workspace: true,
         },
       });
@@ -184,6 +160,17 @@ export const projectRouter = createTRPCRouter({
         where: { projectId: input.projectId },
         include: {
           user: true,
+        },
+      });
+    }),
+
+  getAttachments: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      return ctx.db.attachment.findMany({
+        where: { projectId: input.projectId },
+        include: {
+          uploadedBy: true,
         },
       });
     }),
