@@ -67,7 +67,7 @@ import { truncateFileName } from "~/lib/helper/truncate-filename";
 import type { ProjectListItem, ProjectAttachments, SelectedMember } from "~/types";
 
 // ===== Internal Components =====
-import { MemberCombobox } from "./member-combobox";
+import { MemberCombobox } from "./workspace-member-combobox";
 
 // ============================================================
 // Types

@@ -62,7 +62,7 @@ import { truncateFileName } from "~/lib/helper/truncate-filename";
 import type { TaskListItem, TaskAttachmentData, SelectedMember } from "~/types";
 
 // ===== Internal Components =====
-import { MemberCombobox } from "./member-combobox";
+import { MemberCombobox } from "./project-member-combobox";
 
 // ============================================================
 // Types
@@ -244,7 +244,8 @@ export function CreateTaskDialog({
     try {
       const result = await saveTask();
       await syncAttachments(result.id);
-      await utils.task.invalidate(); // ← was utils.project.invalidate()
+      await utils.task.invalidate(); 
+      await utils.project.invalidate();
       handleClose();
       toast.success(isEdit ? "Task updated!" : "Task created!");
     } catch (err) {

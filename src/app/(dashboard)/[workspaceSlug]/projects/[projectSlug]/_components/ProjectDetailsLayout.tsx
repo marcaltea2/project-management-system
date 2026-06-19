@@ -1,3 +1,4 @@
+// ~/app/(dashboard)/[workspaceSlug]/projects/[projectSlug]/_components/project-details-client.tsx
 "use client";
 
 import { useState } from "react";
@@ -7,48 +8,29 @@ import { DetailsTab } from "./tabs/DetailsTab";
 import { AttachmentsTab } from "./tabs/AttachmentsTab";
 import { MembersTab } from "./tabs/MembersTab";
 import { TasksTab } from "./tabs/TasksTab";
-import { api } from "~/trpc/react";
-import { Skeleton } from "~/components/ui/skeleton";
+import type { ProjectData } from "~/types";
+export type TabId = "details" | "attachments" | "members" | "tasks";
 
-export type TabId = "details" | "attachments" | "members" | "invite" | "tasks";
-
-type ProjectDetailsLayoutProps = {
-  workspaceSlug: string;
-  projectSlug: string;
+type Props = {
+  project: ProjectData;
+  initialStarred: boolean;
 };
 
-export function ProjectDetailsLayout({ workspaceSlug, projectSlug }: ProjectDetailsLayoutProps) {
+export function ProjectDetailsClient({ project, initialStarred }: Props) {
   const [activeTab, setActiveTab] = useState<TabId>("details");
-    const { data: project, isLoading } = api.project.getProject.useQuery({
-    workspaceSlug,
-    projectSlug,
-  });
-
-  
-  if (isLoading) {
-    return (
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <Skeleton key={i} className="h-48 rounded-xl" />
-        ))}
-      </div>
-    );
-  }
-  
-  if (!project) return <div>Project not found</div>;
 
   const renderTab = () => {
     switch (activeTab) {
       case "details":     return <DetailsTab project={project} />;
       case "attachments": return <AttachmentsTab projectId={project.id} />;
       case "members":     return <MembersTab projectId={project.id} />;
-      case "tasks":       return <TasksTab projectId={project.id}/>;      
+      case "tasks":       return <TasksTab projectId={project.id} />;
     }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      <ProjectHeader project={project} />
+    <div className="flex min-h-screen flex-col bg-background">
+      <ProjectHeader project={project} initialStarred={initialStarred} />
       <ProjectTabs activeTab={activeTab} onTabChange={setActiveTab} />
       <div className="flex-1 p-6">{renderTab()}</div>
     </div>

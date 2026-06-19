@@ -122,29 +122,7 @@ export const taskRouter = createTRPCRouter({
         orderBy: { createdAt: "desc" },
       });
     }),
-
-  getTask: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
-      return ctx.db.task.findFirst({
-        where: {
-          id: input.id,
-        },
-        include: {
-          members: {
-            include: {
-              user: true,
-            },
-          },
-          attachments: {
-            include: {
-              uploadedBy: true,
-            },
-          },
-        },
-      });
-    }),
-
+    
   getMembers: protectedProcedure
     .input(z.object({ taskId: z.string() }))
     .query(async ({ ctx, input }) => {

@@ -85,6 +85,7 @@ model User {
   workspacesUpdated Workspace[]       @relation("WorkspaceUpdatedBy")
   membersInvited    WorkspaceMember[] @relation("MemberInviter")
   workspaceMembers  WorkspaceMember[] @relation("MemberUser")
+  starredProjectBy StarredProject[]   @relation("StarredProjectBy")
 }
 
 model Workspace {
@@ -139,6 +140,7 @@ model Project {
   workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   members      ProjectMember[]
   tasks        Task[]
+  starredProject StarredProject[]
 }
 
 model ProjectMember {
@@ -153,6 +155,18 @@ model ProjectMember {
   user        User        @relation("MemberUser", fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
+}
+
+model StarredProject {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation("StarredProjectBy", fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
 }
 
 model Comment {

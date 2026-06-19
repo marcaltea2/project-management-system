@@ -45,8 +45,56 @@ import {
   PROJECT_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
 } from "~/lib/project-options";
-import type { ProjectListItem  } from "~/types";
+import type { ProjectListItem } from "~/types";
 import { cn } from "~/lib/utils";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "~/components/ui/tooltip";
+
+// ─── TaskProgress ─────────────────────────────────────────────────────────────
+
+function TaskProgress({ tasks }: { tasks: ProjectListItem["tasks"] }) {
+  const total = tasks?.length ?? 0;
+  const done = tasks?.filter((t) => t.status === "DONE").length ?? 0;
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
+  if (total === 0) return null;
+
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div className="flex cursor-default items-center gap-2">
+            <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-500",
+                  pct === 100
+                    ? "bg-emerald-500"
+                    : pct >= 60
+                      ? "bg-blue-500"
+                      : "bg-amber-400",
+                )}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-muted-foreground text-[11px] tabular-nums">
+              {done}/{total}
+            </span>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">
+          <p className="text-xs">
+            {pct}% complete · {total - done} remaining
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 type Props = {
   workspaceId: string;
@@ -80,7 +128,6 @@ export function ProjectList({ workspaceId }: Props) {
   const copyAttachments = api.attachments.Duplicate.useMutation({
     onError: (err) => toast.error(err.message),
   });
-  
 
   const handleDuplicate = async (project: ProjectListItem) => {
     try {
@@ -190,7 +237,12 @@ export function ProjectList({ workspaceId }: Props) {
                   />
                 </div>
                 <div>
-                  <p className="text-sm leading-none font-medium" onClick={() => router.push(`/${workspaceSlug}/projects/${project.slug}`)}>
+                  <p
+                    className="text-sm leading-none font-medium"
+                    onClick={() =>
+                      router.push(`/${workspaceSlug}/projects/${project.slug}`)
+                    }
+                  >
                     {project.name}
                   </p>
                   {/* <p className="text-muted-foreground mt-0.5 text-xs">
@@ -233,6 +285,11 @@ export function ProjectList({ workspaceId }: Props) {
                   {project.description}
                 </p>
               )}
+              
+              {/* Progress bar row */}
+              <div className="pt-1 pb-0">
+                <TaskProgress tasks={project.tasks} />
+              </div>
 
               <Separator />
 
@@ -243,8 +300,9 @@ export function ProjectList({ workspaceId }: Props) {
                     className={cn("text-[10px]", statusColor(project.status))}
                   >
                     {
-                      PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)
-                        ?.label
+                      PROJECT_STATUS_OPTIONS.find(
+                        (s) => s.value === project.status,
+                      )?.label
                     }
                   </Badge>
                   <Badge

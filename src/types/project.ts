@@ -7,7 +7,7 @@ export type ProjectAttachments = RouterOutputs["project"]["getAttachments"][numb
 
 export type ProjectMemberUser = NonNullable<ProjectMembers["user"]>;
 export type ProjectWorkspace = ProjectData["workspace"];
-
+export type ProjectLastActivity = NonNullable<RouterOutputs["project"]["getLastActivity"]>;
 
 export type SelectedMember = {
   id: string;

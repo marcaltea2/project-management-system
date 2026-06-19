@@ -389,20 +389,29 @@ export function TasksTab({ projectId }: Props) {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
-  const updateStatus = api.task.update.useMutation({
-    onSuccess: () => utils.task.getAll.invalidate({ projectId }),
-    onError: (err) => {
-      toast.error(err.message);
-      void utils.task.getAll.invalidate({ projectId });
-    },
-  });
+const updateStatus = api.task.update.useMutation({
+  onSuccess: () => {
+    void utils.task.getAll.invalidate({ projectId });
+    void utils.project.invalidate();
+  },
+  onError: (err) => {
+    toast.error(err.message);
+    void utils.task.getAll.invalidate({ projectId });
+    void utils.project.invalidate();
+  },
+});
 
   const deleteTask = api.task.delete.useMutation({
     onSuccess: () => {
       toast.success("Task deleted");
       void utils.task.getAll.invalidate({ projectId });
+      void utils.project.invalidate();
     },
-    onError: (err) => toast.error(err.message),
+    onError: (err) => {
+      toast.error(err.message);
+      void utils.task.getAll.invalidate({ projectId });
+      void utils.project.invalidate();
+    },
   });
 
   // ── Optimistic tasks state for DnD ────────────────────────────────────────

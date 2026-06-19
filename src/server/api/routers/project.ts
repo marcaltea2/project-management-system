@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { ProjectStatus, ProjectRole, Priority } from "@prisma/client";
 import { deleteFromR2 } from "~/server/r2/upload";
+import { TRPCError } from "@trpc/server";
 
 export const projectRouter = createTRPCRouter({
   create: protectedProcedure
@@ -127,6 +128,7 @@ export const projectRouter = createTRPCRouter({
             },
           },
           workspace: true,
+          tasks: true,
         },
         orderBy: { createdAt: "desc" },
       });
@@ -149,6 +151,7 @@ export const projectRouter = createTRPCRouter({
             },
           },
           workspace: true,
+          tasks: true,
         },
       });
     }),
@@ -173,5 +176,88 @@ export const projectRouter = createTRPCRouter({
           uploadedBy: true,
         },
       });
+    }),
+    
+  inviteMember: protectedProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        userId: z.string(), // ← was email
+        role: z.nativeEnum(ProjectRole).default(ProjectRole.MEMBER),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const callerMember = await ctx.db.projectMember.findFirst({
+        where: { projectId: input.projectId, userId: ctx.session.user.id },
+      });
+      if (!callerMember) throw new TRPCError({ code: "FORBIDDEN" });
+
+      const existing = await ctx.db.projectMember.findFirst({
+        where: { projectId: input.projectId, userId: input.userId },
+      });
+      if (existing) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "This person is already a member of the project.",
+        });
+      }
+
+      return ctx.db.projectMember.create({
+        data: {
+          projectId: input.projectId,
+          userId: input.userId,
+          role: input.role,
+          invitedById: ctx.session.user.id,
+        },
+      });
+    }),
+
+  getLastActivity: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const latestTask = await ctx.db.task.findFirst({
+        where: { projectId: input.projectId },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      });
+
+      const project = await ctx.db.project.findUnique({
+        where: { id: input.projectId },
+        select: { updatedAt: true, createdAt: true },
+      });
+
+      const projectTime = new Date(
+        project?.updatedAt ?? project?.createdAt ?? 0,
+      );
+      const taskTime = latestTask ? new Date(latestTask.updatedAt) : null;
+
+      const lastActivityAt =
+        taskTime && taskTime > projectTime ? taskTime : projectTime;
+
+      return { lastActivityAt };
+    }),
+
+  toggleStar: protectedProcedure
+    .input(z.object({ projectId: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const existing = await ctx.db.starredProject.findFirst({
+        where: {
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (existing) {
+        await ctx.db.starredProject.delete({ where: { id: existing.id } });
+        return { starred: false };
+      }
+
+      await ctx.db.starredProject.create({
+        data: {
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        },
+      });
+      return { starred: true };
     }),
 });

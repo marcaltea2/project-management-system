@@ -11,6 +11,14 @@ import {
 } from "~/lib/project-options";
 
 export function DetailsTab({ project }: { project: ProjectData }) {
+  const tasks = project.tasks ?? [];
+  const total = tasks.length;
+  const open = tasks.filter((t) => t.status === "TODO").length;
+  const inProgress = tasks.filter((t) => t.status === "IN_PROGRESS").length;
+  const inReview = tasks.filter((t) => t.status === "IN_REVIEW").length;
+  const done = tasks.filter((t) => t.status === "DONE").length;
+  const pct = total === 0 ? 0 : Math.round((done / total) * 100);
+
   return (
     <div className="grid grid-cols-[1fr_220px] gap-5">
       {/* Left */}
@@ -30,7 +38,7 @@ export function DetailsTab({ project }: { project: ProjectData }) {
             </Button>
           </div>
           <p className="text-muted-foreground text-sm leading-relaxed">
-            {project?.description}
+            {project?.description ?? "No description yet."}
           </p>
         </div>
 
@@ -39,31 +47,39 @@ export function DetailsTab({ project }: { project: ProjectData }) {
           <p className="text-muted-foreground mb-4 text-[10px] font-medium tracking-widest uppercase">
             Progress
           </p>
-          <div className="mb-4 flex items-center gap-3">
-            <Progress value={68} className="h-1.5 flex-1" />
-            <span className="text-muted-foreground font-mono text-xs tabular-nums">
-              68%
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { value: "24", label: "Open" },
-              { value: "8", label: "In progress" },
-              { value: "41", label: "Completed" },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="bg-muted flex flex-col gap-1 rounded-lg p-3"
-              >
-                <span className="text-xl font-medium tabular-nums">
-                  {s.value}
-                </span>
-                <span className="text-muted-foreground text-[11px]">
-                  {s.label}
+
+          {total === 0 ? (
+            <p className="text-muted-foreground text-sm">No tasks yet.</p>
+          ) : (
+            <>
+              <div className="mb-4 flex items-center gap-3">
+                <Progress value={pct} className="h-1.5 flex-1" />
+                <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                  {pct}%
                 </span>
               </div>
-            ))}
-          </div>
+              <div className="grid grid-cols-4 gap-3">
+                {[
+                  { value: open, label: "Open" },
+                  { value: inProgress, label: "In progress" },
+                  { value: inReview, label: "In review" },
+                  { value: done, label: "Completed" },
+                ].map((s) => (
+                  <div
+                    key={s.label}
+                    className="bg-muted flex flex-col gap-1 rounded-lg p-3"
+                  >
+                    <span className="text-xl font-medium tabular-nums">
+                      {s.value}
+                    </span>
+                    <span className="text-muted-foreground text-[11px]">
+                      {s.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -88,13 +104,17 @@ export function DetailsTab({ project }: { project: ProjectData }) {
           {
             icon: <Target size={12} />,
             label: "Priority",
-            value: PRIORITY_OPTIONS.find((p) => p.value === project.priority)?.label ?? project.priority,
+            value:
+              PRIORITY_OPTIONS.find((p) => p.value === project.priority)
+                ?.label ?? project.priority,
             valueClass: "text-red-500",
           },
           {
             icon: <TrendingUp size={12} />,
             label: "Status",
-            value: PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)?.label ?? project.status,
+            value:
+              PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)
+                ?.label ?? project.status,
             valueClass: "text-emerald-500",
           },
         ].map((item) => (
