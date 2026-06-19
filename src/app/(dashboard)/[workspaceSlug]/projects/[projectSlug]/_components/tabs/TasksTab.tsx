@@ -7,7 +7,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
-  closestCorners,
+  rectIntersection,
+  useDroppable,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
 import {
@@ -97,7 +99,23 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "DONE", label: "Done" },
 ];
 
-// ── Sortable task card (board) ────────────────────────────────────────────────
+// ── Custom kanban collision detection ─────────────────────────────────────────
+
+const kanbanCollision: CollisionDetection = (args) => {
+  // Check columns first
+  const columnCollisions = rectIntersection({
+    ...args,
+    droppableContainers: args.droppableContainers.filter((c) =>
+      COLUMNS.some((col) => col.id === c.id),
+    ),
+  });
+  if (columnCollisions.length > 0) return columnCollisions;
+
+  // Fall back to task cards
+  return rectIntersection(args);
+};
+
+// ── Sortable task card ────────────────────────────────────────────────────────
 
 function SortableTaskCard({
   task,
@@ -108,9 +126,14 @@ function SortableTaskCard({
   onEdit: (task: TaskListItem) => void;
   onDelete: (id: string) => void;
 }) {
-  
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: task.id, data: { status: task.status } });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id, data: { status: task.status } });
 
   const style = { transform: CSS.Transform.toString(transform), transition };
 
@@ -132,7 +155,9 @@ function SortableTaskCard({
           <GripVertical size={13} />
         </button>
         <p className="flex-1 text-sm leading-snug">{task.name}</p>
-        <span className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`} />
+        <span
+          className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`}
+        />
         <TaskMenu task={task} onEdit={onEdit} onDelete={onDelete} />
       </div>
       <div className="flex items-center justify-between pl-5">
@@ -154,13 +179,20 @@ function SortableTaskCard({
   );
 }
 
+// ── Drag overlay card ─────────────────────────────────────────────────────────
+
 function DragOverlayCard({ task }: { task: TaskListItem }) {
   return (
     <div className="bg-card border-border flex rotate-1 cursor-grabbing flex-col gap-3 rounded-lg border p-3 opacity-95 shadow-xl">
       <div className="flex items-start gap-2">
-        <GripVertical size={13} className="text-muted-foreground mt-0.5 flex-shrink-0" />
+        <GripVertical
+          size={13}
+          className="text-muted-foreground mt-0.5 flex-shrink-0"
+        />
         <p className="flex-1 text-sm leading-snug">{task.name}</p>
-        <span className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`} />
+        <span
+          className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`}
+        />
       </div>
       <div className="flex items-center justify-between pl-5">
         <span className="text-muted-foreground font-mono text-[11px]">
@@ -181,7 +213,7 @@ function DragOverlayCard({ task }: { task: TaskListItem }) {
   );
 }
 
-// ── Task context menu ─────────────────────────────────────────────────────────
+// ── Task menu ─────────────────────────────────────────────────────────────────
 
 function TaskMenu({
   task,
@@ -219,6 +251,66 @@ function TaskMenu({
   );
 }
 
+// ── Kanban column ─────────────────────────────────────────────────────────────
+
+function KanbanColumn({
+  col,
+  tasks,
+  onEdit,
+  onDelete,
+}: {
+  col: { id: TaskStatus; label: string };
+  tasks: TaskListItem[];
+  onEdit: (task: TaskListItem) => void;
+  onDelete: (id: string) => void;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: col.id });
+  const style = COLUMN_STYLES[col.id];
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Column header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className={`h-2 w-2 rounded-full ${style.dot}`} />
+          <span className="text-xs font-medium">{col.label}</span>
+        </div>
+        <Badge
+          variant="secondary"
+          className={`px-1.5 py-0 text-[10px] ${style.badge}`}
+        >
+          {tasks.length}
+        </Badge>
+      </div>
+
+      {/* Drop zone */}
+      <SortableContext
+        id={col.id}
+        items={tasks.map((t) => t.id)}
+        strategy={verticalListSortingStrategy}
+      >
+        <div
+          ref={setNodeRef}
+          className={cn(
+            "flex min-h-24 flex-col gap-2 rounded-xl p-2 transition-all duration-150",
+            tasks.length === 0 && "border-border border-2 border-dashed",
+            isOver && "bg-muted/60 border-primary/40 scale-[1.01] border-2 border-dashed",
+          )}
+        >
+          {tasks.map((task) => (
+            <SortableTaskCard
+              key={task.id}
+              task={task}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </div>
+  );
+}
+
 // ── Board view ────────────────────────────────────────────────────────────────
 
 function BoardView({
@@ -229,6 +321,7 @@ function BoardView({
   activeTask,
   onEdit,
   onDelete,
+  projectId,
 }: {
   tasks: TaskListItem[];
   onDragStart: (e: DragStartEvent) => void;
@@ -246,52 +339,21 @@ function BoardView({
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={kanbanCollision}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragEnd={onDragEnd}
     >
       <div className="grid grid-cols-4 gap-4">
-        {COLUMNS.map((col) => {
-          const colTasks = tasks.filter((t) => t.status === col.id);
-          const style = COLUMN_STYLES[col.id];
-
-          return (
-            <div key={col.id} className="flex flex-col gap-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${style.dot}`} />
-                  <span className="text-xs font-medium">{col.label}</span>
-                </div>
-                <Badge variant="secondary" className={`px-1.5 py-0 text-[10px] ${style.badge}`}>
-                  {colTasks.length}
-                </Badge>
-              </div>
-
-              <SortableContext
-                id={col.id}
-                items={colTasks.map((t) => t.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div
-                  className={cn(
-                    "flex min-h-24 flex-col gap-2 rounded-xl p-2 transition-colors",
-                    colTasks.length === 0 && "border-border border-2 border-dashed",
-                  )}
-                >
-                  {colTasks.map((task) => (
-                    <SortableTaskCard
-                      key={task.id}
-                      task={task}
-                      onEdit={onEdit}
-                      onDelete={onDelete}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </div>
-          );
-        })}
+        {COLUMNS.map((col) => (
+          <KanbanColumn
+            key={col.id}
+            col={col}
+            tasks={tasks.filter((t) => t.status === col.id)}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
       </div>
 
       <DragOverlay>
@@ -314,7 +376,9 @@ function ListView({
   onEdit: (task: TaskListItem) => void;
   onDelete: (id: string) => void;
 }) {
-  const visible = tasks.filter((t) => filter === "all" || t.status === filter);
+  const visible = tasks.filter(
+    (t) => filter === "all" || t.status === filter,
+  );
 
   if (visible.length === 0) {
     return (
@@ -343,7 +407,9 @@ function ListView({
           >
             {task.name}
           </span>
-          <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`} />
+          <span
+            className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority]}`}
+          />
           <span className="text-muted-foreground w-20 text-right font-mono text-xs tabular-nums">
             {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : "—"}
           </span>
@@ -376,6 +442,7 @@ export function TasksTab({ projectId }: Props) {
   const [activeTask, setActiveTask] = useState<TaskListItem | null>(null);
   const [editingTask, setEditingTask] = useState<TaskListItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [optimisticTasks, setOptimisticTasks] = useState<TaskListItem[] | null>(null);
 
   const utils = api.useUtils();
 
@@ -385,21 +452,21 @@ export function TasksTab({ projectId }: Props) {
     projectId,
   });
 
-  console.log("TASKS: ",tasks);
+  const displayTasks = optimisticTasks ?? tasks;
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
+  // ── Mutations ─────────────────────────────────────────────────────────────
 
-const updateStatus = api.task.update.useMutation({
-  onSuccess: () => {
-    void utils.task.getAll.invalidate({ projectId });
-    void utils.project.invalidate();
-  },
-  onError: (err) => {
-    toast.error(err.message);
-    void utils.task.getAll.invalidate({ projectId });
-    void utils.project.invalidate();
-  },
-});
+  const updateStatus = api.task.update.useMutation({
+    onSuccess: () => {
+      void utils.task.getAll.invalidate({ projectId });
+      void utils.project.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message);
+      void utils.task.getAll.invalidate({ projectId });
+      void utils.project.invalidate();
+    },
+  });
 
   const deleteTask = api.task.delete.useMutation({
     onSuccess: () => {
@@ -414,11 +481,6 @@ const updateStatus = api.task.update.useMutation({
     },
   });
 
-  // ── Optimistic tasks state for DnD ────────────────────────────────────────
-
-  const [optimisticTasks, setOptimisticTasks] = useState<TaskListItem[] | null>(null);
-  const displayTasks = optimisticTasks ?? tasks;
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleEdit = useCallback((task: TaskListItem) => {
@@ -427,9 +489,7 @@ const updateStatus = api.task.update.useMutation({
   }, []);
 
   const handleDelete = useCallback(
-    (id: string) => {
-      deleteTask.mutate({ id });
-    },
+    (id: string) => deleteTask.mutate({ id }),
     [deleteTask],
   );
 
@@ -445,11 +505,17 @@ const updateStatus = api.task.update.useMutation({
     const activeId = active.id as string;
     const overId = over.id as string;
 
+    if (activeId === overId) return;
+
     const overColumn = COLUMNS.find((c) => c.id === overId);
+    const overTask = displayTasks.find((t) => t.id === overId);
     const targetStatus: TaskStatus | undefined =
-      overColumn?.id ?? displayTasks.find((t) => t.id === overId)?.status;
+      overColumn?.id ?? overTask?.status;
 
     if (!targetStatus) return;
+
+    const draggingTask = displayTasks.find((t) => t.id === activeId);
+    if (!draggingTask || draggingTask.status === targetStatus) return;
 
     setOptimisticTasks((prev) =>
       (prev ?? tasks).map((t) =>
@@ -471,8 +537,9 @@ const updateStatus = api.task.update.useMutation({
     const overId = over.id as string;
 
     const overColumn = COLUMNS.find((c) => c.id === overId);
+    const overTask = displayTasks.find((t) => t.id === overId);
     const targetStatus: TaskStatus | undefined =
-      overColumn?.id ?? displayTasks.find((t) => t.id === overId)?.status;
+      overColumn?.id ?? overTask?.status;
 
     if (!targetStatus) {
       setOptimisticTasks(null);
@@ -480,12 +547,16 @@ const updateStatus = api.task.update.useMutation({
     }
 
     const originalTask = tasks.find((t) => t.id === activeId);
-    if (!originalTask || originalTask.status === targetStatus) {
+    if (!originalTask) {
       setOptimisticTasks(null);
       return;
     }
 
-    // Persist optimistic state then fire mutation
+    if (originalTask.status === targetStatus) {
+      setOptimisticTasks(null);
+      return;
+    }
+
     updateStatus.mutate(
       {
         id: activeId,
