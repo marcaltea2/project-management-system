@@ -21,7 +21,7 @@ export function ProjectDetailsClient({ project, initialStarred }: Props) {
 
   const renderTab = () => {
     switch (activeTab) {
-      case "details":     return <DetailsTab project={project} />;
+case "details": return <DetailsTab project={project} />;
       case "attachments": return <AttachmentsTab projectId={project.id} />;
       case "members":     return <MembersTab projectId={project.id} />;
       case "tasks":       return <TasksTab projectId={project.id} />;

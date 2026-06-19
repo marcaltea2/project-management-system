@@ -1,4 +1,3 @@
-// ~/app/(dashboard)/[workspaceSlug]/projects/[projectSlug]/_components/project-header.tsx
 "use client";
 
 import {
@@ -12,7 +11,6 @@ import {
   UserPlus,
 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { Badge } from "~/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -27,26 +25,30 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "~/components/ui/tooltip";
-
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "~/components/ui/select";
 import { cn } from "~/lib/utils";
+import { toSlug } from "~/lib/to-slug";
 import type { ProjectData } from "~/types";
 import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
 import { formatDistanceToNow } from "date-fns";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "~/trpc/react";
+import { toast } from "sonner";
 import { InviteMemberDialog } from "./invite-member-dialog";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
+import type { ProjectStatus, Priority } from "@prisma/client";
 
 type SaveStatus = "idle" | "saving" | "saved";
 
 type Props = {
   project: ProjectData;
-  /** Initial starred state — derive this server-side before passing down */
   initialStarred?: boolean;
 };
-
-// ─── SaveIndicator ────────────────────────────────────────────────────────────
 
 function SaveIndicator({ status }: { status: SaveStatus }) {
   if (status === "idle") return null;
@@ -68,18 +70,23 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   );
 }
 
-// ─── ProjectHeader ────────────────────────────────────────────────────────────
-
 export function ProjectHeader({ project, initialStarred = false }: Props) {
+  const [name, setName] = useState(project.name);
+  const [status, setStatus] = useState<ProjectStatus>(project.status);
+  const [priority, setPriority] = useState<Priority>(project.priority);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [isStarred, setIsStarred] = useState(initialStarred);
   const [inviteOpen, setInviteOpen] = useState(false);
 
-  // ── Last activity: poll the server for task-aware timestamp ──────────────
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const utils = api.useUtils();
+
+  // ── Last activity ────────────────────────────────────────────────────────
   const { data: activityData } = api.project.getLastActivity.useQuery(
     { projectId: project.id },
     {
-      refetchInterval: 30_000, // refresh every 30s
+      refetchInterval: 30_000,
       initialData: {
         lastActivityAt: new Date(project.updatedAt ?? project.createdAt),
       },
@@ -87,13 +94,68 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
   );
   const activityDate = new Date(activityData.lastActivityAt);
 
-  // ── Star toggle ──────────────────────────────────────────────────────────
-  const toggleStar = api.project.toggleStar.useMutation({
-    onMutate: () => setIsStarred((v) => !v), // optimistic
-    onError: () => setIsStarred((v) => !v),  // rollback
+  // ── Update mutation ──────────────────────────────────────────────────────
+  const update = api.project.update.useMutation({
+    onMutate: () => {
+      setSaveStatus("saving");
+      window.dispatchEvent(new Event("project:saving"));
+    },
+    onSuccess: () => {
+      setSaveStatus("saved");
+      void utils.project.getProject.invalidate();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => setSaveStatus("idle"), 2500);
+    },
+    onError: (err) => {
+      setSaveStatus("idle");
+      toast.error(err.message ?? "Failed to save");
+    },
   });
 
-  // ── Auto-save indicator ──────────────────────────────────────────────────
+  const scheduleSave = useCallback(
+    (patch: { name?: string; status?: ProjectStatus; priority?: Priority }) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        update.mutate({
+          id: project.id,
+          name: patch.name ?? name,
+          slug: toSlug(patch.name ?? name),
+          status: patch.status ?? status,
+          priority: patch.priority ?? priority,
+        });
+      }, 800);
+    },
+    [update, project.id, name, status, priority],
+  );
+
+  const saveNow = useCallback(
+    (patch: { status?: ProjectStatus; priority?: Priority }) => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      update.mutate({
+        id: project.id,
+        name,
+        slug: toSlug(name),
+        status: patch.status ?? status,
+        priority: patch.priority ?? priority,
+      });
+    },
+    [update, project.id, name, status, priority],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
+  }, []);
+
+  // ── Star toggle ──────────────────────────────────────────────────────────
+  const toggleStar = api.project.toggleStar.useMutation({
+    onMutate: () => setIsStarred((v) => !v),
+    onError: () => setIsStarred((v) => !v),
+  });
+
+  // ── Auto-save listener for child mutations ───────────────────────────────
   const triggerSave = useCallback(() => {
     setSaveStatus("saving");
     const t1 = setTimeout(() => setSaveStatus("saved"), 1200);
@@ -102,7 +164,6 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
   }, []);
 
   useEffect(() => {
-    // Any child mutation dispatches: window.dispatchEvent(new Event("project:saving"))
     window.addEventListener("project:saving", triggerSave);
     return () => window.removeEventListener("project:saving", triggerSave);
   }, [triggerSave]);
@@ -111,13 +172,6 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
   const remainingCount = Math.max(
     (project.members?.length ?? 0) - visibleMembers.length,
     0,
-  );
-
-  const statusOption = PROJECT_STATUS_OPTIONS.find(
-    (s) => s.value === project.status,
-  );
-  const priorityOption = PRIORITY_OPTIONS.find(
-    (p) => p.value === project.priority,
   );
 
   return (
@@ -145,38 +199,80 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
         </nav>
 
         {/* Header row */}
-        <div className="flex items-start justify-between pb-3">
-          {/* Left */}
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between pb-4">
+          {/* Left — name + badges */}
+          <div className="flex min-w-0 flex-1 items-center gap-3 pr-4">
             <div className="bg-muted border-border flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border text-lg">
               🚀
             </div>
-            <div className="flex flex-col gap-1">
+
+            <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold capitalize leading-none">
-                  {project.name}
-                </h1>
+                <input
+                  value={name}
+                  onChange={(e) => {
+                    setName(e.target.value);
+                    scheduleSave({ name: e.target.value });
+                  }}
+                  onBlur={() => {
+                    if (!name.trim()) setName(project.name);
+                  }}
+                  placeholder="Project name"
+                  className={cn(
+                    "text-foreground w-full bg-transparent text-sm font-semibold leading-none outline-none",
+                    "-ml-1.5 rounded px-1.5 py-0.5 transition-colors",
+                    "hover:bg-muted focus:bg-muted",
+                  )}
+                />
                 <SaveIndicator status={saveStatus} />
               </div>
+
               <div className="flex items-center gap-1.5">
-                <Badge
-                  variant="secondary"
-                  className="border-emerald-200 bg-emerald-50 px-1.5 py-0 text-[10px] leading-5 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400"
+                <Select
+                  value={status}
+                  onValueChange={(v) => {
+                    const val = v as ProjectStatus;
+                    setStatus(val);
+                    saveNow({ status: val });
+                  }}
                 >
-                  {statusOption?.label ?? project.status}
-                </Badge>
-                <Badge
-                  variant="secondary"
-                  className="px-1.5 py-0 text-[10px] leading-5"
+                  <SelectTrigger className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-400 h-5 gap-1 border px-1.5 text-[10px] font-medium shadow-none focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_STATUS_OPTIONS.map((s) => (
+                      <SelectItem key={s.value} value={s.value} className="text-xs">
+                        {s.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select
+                  value={priority}
+                  onValueChange={(v) => {
+                    const val = v as Priority;
+                    setPriority(val);
+                    saveNow({ priority: val });
+                  }}
                 >
-                  {priorityOption?.label ?? project.priority}
-                </Badge>
+                  <SelectTrigger className="h-5 gap-1 border px-1.5 text-[10px] font-medium shadow-none focus:ring-0">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRIORITY_OPTIONS.map((p) => (
+                      <SelectItem key={p.value} value={p.value} className="text-xs">
+                        {p.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
 
-          {/* Right */}
-          <div className="flex items-center gap-2">
+          {/* Right — actions */}
+          <div className="flex shrink-0 items-center gap-2">
             <span className="text-muted-foreground flex items-center gap-1 text-[11px]">
               <Clock size={11} />
               {formatDistanceToNow(activityDate, { addSuffix: true })}
@@ -231,7 +327,7 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent side="bottom">
-                    <p className="text-xs">Invite member</p>
+                    <p className="text-xs">Add member</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -260,9 +356,7 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom">
-                  <p className="text-xs">
-                    {isStarred ? "Unstar" : "Star project"}
-                  </p>
+                  <p className="text-xs">{isStarred ? "Unstar" : "Star project"}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -277,10 +371,9 @@ export function ProjectHeader({ project, initialStarred = false }: Props) {
               <DropdownMenuContent align="end" className="w-44">
                 <DropdownMenuItem onClick={() => setInviteOpen(true)}>
                   <UserPlus size={13} className="mr-2" />
-                  Invite member
+                  Add member
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>Edit project</DropdownMenuItem>
                 <DropdownMenuItem>Duplicate</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-destructive">
