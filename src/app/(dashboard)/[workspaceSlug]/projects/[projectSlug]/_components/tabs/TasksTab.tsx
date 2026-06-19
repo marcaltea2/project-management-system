@@ -11,7 +11,11 @@ import {
   useDroppable,
   type CollisionDetection,
 } from "@dnd-kit/core";
-import type { DragEndEvent, DragOverEvent, DragStartEvent } from "@dnd-kit/core";
+import type {
+  DragEndEvent,
+  DragOverEvent,
+  DragStartEvent,
+} from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
@@ -79,15 +83,18 @@ const COLUMN_STYLES: Record<TaskStatus, { dot: string; badge: string }> = {
   TODO: { dot: "bg-muted-foreground", badge: "" },
   IN_PROGRESS: {
     dot: "bg-blue-500",
-    badge: "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400",
+    badge:
+      "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-400",
   },
   IN_REVIEW: {
     dot: "bg-amber-500",
-    badge: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400",
+    badge:
+      "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950 dark:text-amber-400",
   },
   DONE: {
     dot: "bg-emerald-500",
-    badge: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400",
+    badge:
+      "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950 dark:text-emerald-400",
   },
 };
 
@@ -294,7 +301,8 @@ function KanbanColumn({
           className={cn(
             "flex min-h-24 flex-col gap-2 rounded-xl p-2 transition-all duration-150",
             tasks.length === 0 && "border-border border-2 border-dashed",
-            isOver && "bg-muted/60 border-primary/40 scale-[1.01] border-2 border-dashed",
+            isOver &&
+              "bg-muted/60 border-primary/40 scale-[1.01] border-2 border-dashed",
           )}
         >
           {tasks.map((task) => (
@@ -376,9 +384,7 @@ function ListView({
   onEdit: (task: TaskListItem) => void;
   onDelete: (id: string) => void;
 }) {
-  const visible = tasks.filter(
-    (t) => filter === "all" || t.status === filter,
-  );
+  const visible = tasks.filter((t) => filter === "all" || t.status === filter);
 
   if (visible.length === 0) {
     return (
@@ -442,7 +448,9 @@ export function TasksTab({ projectId }: Props) {
   const [activeTask, setActiveTask] = useState<TaskListItem | null>(null);
   const [editingTask, setEditingTask] = useState<TaskListItem | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [optimisticTasks, setOptimisticTasks] = useState<TaskListItem[] | null>(null);
+  const [optimisticTasks, setOptimisticTasks] = useState<TaskListItem[] | null>(
+    null,
+  );
 
   const utils = api.useUtils();
 
@@ -457,14 +465,25 @@ export function TasksTab({ projectId }: Props) {
   // ── Mutations ─────────────────────────────────────────────────────────────
 
   const updateStatus = api.task.update.useMutation({
-    onSuccess: () => {
-      void utils.task.getAll.invalidate({ projectId });
+    onSuccess: (updatedTask) => {
+      // Update cache directly — no refetch, no flicker
+      utils.task.getAll.setData({ projectId }, (prev) => {
+        if (!prev) return prev;
+        return prev.map((t) =>
+          t.id === updatedTask.id ? { ...t, status: updatedTask.status } : t,
+        );
+      });
+      // Invalidate in background for eventual consistency
       void utils.project.invalidate();
     },
     onError: (err) => {
       toast.error(err.message);
+      // On error, invalidate to reset to server truth
       void utils.task.getAll.invalidate({ projectId });
       void utils.project.invalidate();
+    },
+    onSettled: () => {
+      setOptimisticTasks(null);
     },
   });
 
