@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-import { uploadToR2, deleteFromR2 } from "~/server/r2/upload";
+import {
+  uploadToR2,
+  deleteFromR2,
+  getPresignedDownloadUrl,
+} from "~/server/r2/upload";
 import { TRPCError } from "@trpc/server";
 
 export const attachmentsRouter = createTRPCRouter({
@@ -109,4 +113,47 @@ export const attachmentsRouter = createTRPCRouter({
 
       return results;
     }),
+
+  getDownloadUrl: protectedProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ ctx, input }) => {
+      const attachment = await ctx.db.attachment.findUnique({
+        where: { id: input.id },
+      });
+
+      if (!attachment?.storageKey) throw new TRPCError({ code: "NOT_FOUND" });
+
+      const url = await getPresignedDownloadUrl({
+        key: attachment.storageKey,
+        filename: attachment.filename,
+        expiresIn: 60, // 60 seconds is plenty
+      });
+
+      return { url };
+    }),
+    
+downloadAll: protectedProcedure
+  .input(z.object({ projectId: z.string() }))
+  .mutation(async ({ ctx, input }) => {
+    const attachments = await ctx.db.attachment.findMany({
+      where: { projectId: input.projectId },
+    });
+
+    const files = await Promise.all(
+      attachments.map(async (a) => {
+        if (!a.storageKey) throw new TRPCError({ code: "NOT_FOUND" });
+
+        return {
+          filename: a.filename,
+          url: await getPresignedDownloadUrl({
+            key: a.storageKey, // narrowed to string
+            filename: a.filename,
+            expiresIn: 120,
+          }),
+        };
+      }),
+    );
+
+    return { files };
+  }),
 });

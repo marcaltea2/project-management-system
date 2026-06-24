@@ -177,7 +177,7 @@ export const projectRouter = createTRPCRouter({
         },
       });
     }),
-    
+
   inviteMember: protectedProcedure
     .input(
       z.object({

@@ -1,10 +1,11 @@
-import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { r2 } from "~/server/r2/r2";
 import { env } from "~/env";
 import { randomUUID } from "crypto";
 
 type UploadInput = {
-  fileData: string;   // base64
+  fileData: string; // base64
   filename: string;
   mimeType: string;
   folder: string;
@@ -15,6 +16,12 @@ type UploadResult = {
   key: string;
   filename: string;
 };
+
+type GetObject = {
+   key: string;
+  filename: string;
+  expiresIn?: number;
+}
 
 export async function uploadToR2({
   fileData,
@@ -43,7 +50,6 @@ export async function uploadToR2({
   };
 }
 
-
 export async function deleteFromR2(key: string): Promise<void> {
   await r2.send(
     new DeleteObjectCommand({
@@ -51,4 +57,18 @@ export async function deleteFromR2(key: string): Promise<void> {
       Key: key,
     }),
   );
+}
+
+export async function getPresignedDownloadUrl({
+  key,
+  filename,
+  expiresIn = 60,
+}: GetObject) {
+  const command = new GetObjectCommand({
+    Bucket: process.env.R2_BUCKET_NAME,
+    Key: key,
+    ResponseContentDisposition: `attachment; filename="${filename}"`,
+  });
+
+  return getSignedUrl(r2, command, { expiresIn });
 }

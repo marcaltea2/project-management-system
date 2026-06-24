@@ -13,6 +13,7 @@ import { getFileIcon } from "~/lib/helper/get-file-icon";
 import { api } from "~/trpc/react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { toast } from "sonner";
+import JSZip from "jszip";
 
 type Props = { projectId: string };
 
@@ -30,10 +31,13 @@ export function AttachmentsTab({ projectId }: Props) {
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
+  const getDownloadUrl = api.attachments.getDownloadUrl.useMutation();
+  const downloadAll = api.attachments.downloadAll.useMutation();
+  
   const upload = api.attachments.upload.useMutation({
     onSuccess: () => {
       void utils.project.getAttachments.invalidate({ projectId });
-      toast.success("File uploaded");
+      toast.success("File Uploaded");
     },
     onError: (err) => toast.error(err.message),
   });
@@ -41,7 +45,7 @@ export function AttachmentsTab({ projectId }: Props) {
   const remove = api.attachments.delete.useMutation({
     onSuccess: () => {
       void utils.project.getAttachments.invalidate({ projectId });
-      toast.success("Attachment deleted");
+      toast.success("Attachment Deleted");
     },
     onError: (err) => toast.error(err.message),
     onSettled: () => setDeletingId(null),
@@ -84,28 +88,51 @@ export function AttachmentsTab({ projectId }: Props) {
     remove.mutate({ id });
   };
 
-  const handleDownload = (url: string, filename: string) => {
+const handleDownload = async (id: string) => {
+  try {
+    const { url } = await getDownloadUrl.mutateAsync({ id });
     const a = document.createElement("a");
     a.href = url;
-    a.download = filename;
-    a.target = "_blank";
-    a.rel = "noopener noreferrer";
+    a.download = "";
+    document.body.appendChild(a);
     a.click();
-  };
+    document.body.removeChild(a);
+  } catch {
+    toast.error("Failed to download file");
+  }
+};
 
-  const handleDownloadAll = async () => {
-    if (attachments.length === 0) return;
-    setDownloadingAll(true);
-    try {
-      for (const f of attachments) {
-        // stagger slightly so browser doesn't block multiple downloads
-        await new Promise((res) => setTimeout(res, 300));
-        handleDownload(f.url, f.filename);
-      }
-    } finally {
-      setDownloadingAll(false);
-    }
-  };
+const handleDownloadAll = async () => {
+  if (attachments.length === 0) return;
+  setDownloadingAll(true);
+
+  try {
+    const { files } = await downloadAll.mutateAsync({ projectId });
+    const zip = new JSZip();
+
+    await Promise.all(
+      files.map(async ({ filename, url }) => {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        zip.file(filename, blob);
+      }),
+    );
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    const blobUrl = URL.createObjectURL(zipBlob);
+
+    const a = document.createElement("a");
+    a.href = blobUrl;
+    a.download = "attachments.zip";
+    a.click();
+
+    URL.revokeObjectURL(blobUrl);
+  } catch {
+    toast.error("Failed to download files");
+  } finally {
+    setDownloadingAll(false);
+  }
+};
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -205,7 +232,7 @@ export function AttachmentsTab({ projectId }: Props) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => handleDownload(f.url, f.filename)}>
+                    <DropdownMenuItem onClick={() => void handleDownload(f.id)}>
                       <Download size={13} className="mr-2" /> Download
                     </DropdownMenuItem>
                     <DropdownMenuItem
