@@ -56,6 +56,7 @@ export const taskRouter = createTRPCRouter({
         status: z.nativeEnum(TaskStatus).default(TaskStatus.TODO),
         priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
         dueDate: z.date().optional(),
+        members: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -68,6 +69,17 @@ export const taskRouter = createTRPCRouter({
           priority: input.priority,
           dueDate: input.dueDate,
           updatedById: ctx.session.user.id,
+
+          
+          ...(input.members && {
+            members: {
+              deleteMany: {},
+              create: input.members.map((userId) => ({
+                userId,
+                role: ProjectRole.MEMBER,
+              })),
+            },
+          }),
         },
       });
     }),
@@ -122,7 +134,7 @@ export const taskRouter = createTRPCRouter({
         orderBy: { createdAt: "desc" },
       });
     }),
-    
+
   getMembers: protectedProcedure
     .input(z.object({ taskId: z.string() }))
     .query(async ({ ctx, input }) => {

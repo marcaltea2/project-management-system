@@ -63,9 +63,32 @@ export const projectRouter = createTRPCRouter({
         priority: z.nativeEnum(Priority).default(Priority.MEDIUM),
         dueDate: z.date().optional(),
         coverColor: z.string().optional(),
+        members: z.array(z.string()).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.members) {
+        // Find removed members by comparing current vs incoming
+        const currentMembers = await ctx.db.projectMember.findMany({
+          where: { projectId: input.id },
+          select: { userId: true },
+        });
+
+        const removedUserIds = currentMembers
+          .map((m) => m.userId)
+          .filter((userId) => !input.members!.includes(userId));
+
+        if (removedUserIds.length > 0) {
+          // Remove them from all tasks in this project
+          await ctx.db.taskMember.deleteMany({
+            where: {
+              task: { projectId: input.id },
+              userId: { in: removedUserIds },
+            },
+          });
+        }
+      }
+
       return ctx.db.project.update({
         where: { id: input.id },
         data: {
@@ -77,6 +100,15 @@ export const projectRouter = createTRPCRouter({
           dueDate: input.dueDate,
           coverColor: input.coverColor,
           updatedById: ctx.session.user.id,
+          ...(input.members && {
+            members: {
+              deleteMany: {},
+              create: input.members.map((userId) => ({
+                userId,
+                role: ProjectRole.MEMBER,
+              })),
+            },
+          }),
         },
       });
     }),

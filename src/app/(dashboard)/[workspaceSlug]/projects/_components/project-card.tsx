@@ -99,16 +99,16 @@ export function ProjectCard({
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => (onEdit)}>
+            <DropdownMenuItem onClick={onEdit}>
               Edit
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => (onDuplicate)}>
+            <DropdownMenuItem onClick={onDuplicate}>
               Duplicate
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-destructive"
-              onClick={() => (onDelete)}
+              onClick={onDelete}
             >
               Delete
             </DropdownMenuItem>

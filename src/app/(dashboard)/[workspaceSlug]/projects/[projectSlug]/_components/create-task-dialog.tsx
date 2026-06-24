@@ -141,7 +141,7 @@ export function CreateTaskDialog({
       setDueDate(task.dueDate ?? undefined);
       setMembers(
         task.members.map((m) => ({
-          id: m.id,
+          id: m.userId,
           name: m.user?.name ?? "null",
           image: m.user?.image ?? null,
           email: m.user?.email ?? null,
@@ -211,6 +211,7 @@ export function CreateTaskDialog({
         status,
         priority,
         dueDate,
+        members: members.map((m) => m.id),
       });
     }
 

@@ -224,6 +224,7 @@ export function CreateProjectDialog({
         priority,
         dueDate,
         coverColor,
+        members: members.map((m) => m.id),
       });
     }
 
