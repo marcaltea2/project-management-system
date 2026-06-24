@@ -123,6 +123,8 @@ export function TasksTab({ projectId }: Props) {
       return;
     }
 
+    window.dispatchEvent(new Event("project:saving"));
+    
     updateStatus.mutate(
       {
         id: activeId,

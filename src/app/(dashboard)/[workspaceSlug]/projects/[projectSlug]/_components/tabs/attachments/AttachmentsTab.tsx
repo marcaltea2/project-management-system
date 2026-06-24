@@ -1,6 +1,7 @@
 "use client";
 
-import { Upload, MoreHorizontal } from "lucide-react";
+import { useRef, useState } from "react";
+import { Upload, MoreHorizontal, Download, Trash2, Loader2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import {
   DropdownMenu,
@@ -8,24 +9,105 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/components/ui/dropdown-menu";
-
 import { getFileIcon } from "~/lib/helper/get-file-icon";
 import { api } from "~/trpc/react";
 import { Skeleton } from "~/components/ui/skeleton";
+import { toast } from "sonner";
 
-type Props = {
-  projectId: string;
-};
+type Props = { projectId: string };
 
 export function AttachmentsTab({ projectId }: Props) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const utils = api.useUtils();
+
   // ── Fetch ──────────────────────────────────────────────────────────────────
 
-  const { data: attachments = [], isLoading } =
-    api.project.getAttachments.useQuery({
-      projectId,
-    });
+  const { data: attachments = [], isLoading } = api.project.getAttachments.useQuery({ projectId });
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Mutations ──────────────────────────────────────────────────────────────
+
+  const upload = api.attachments.upload.useMutation({
+    onSuccess: () => {
+      void utils.project.getAttachments.invalidate({ projectId });
+      toast.success("File uploaded");
+    },
+    onError: (err) => toast.error(err.message),
+  });
+
+  const remove = api.attachments.delete.useMutation({
+    onSuccess: () => {
+      void utils.project.getAttachments.invalidate({ projectId });
+      toast.success("Attachment deleted");
+    },
+    onError: (err) => toast.error(err.message),
+    onSettled: () => setDeletingId(null),
+  });
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+
+    try {
+      for (const file of Array.from(files)) {
+        const base64 = await toBase64(file);
+        window.dispatchEvent(new Event("project:saving"));
+        await upload.mutateAsync({
+          filename: file.name,
+          fileData: base64,
+          mimeType: file.type,
+          folder: "projects",
+          projectId,
+        });
+      }
+    } catch {
+      // errors handled in onError
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    void handleFiles(e.dataTransfer.files);
+  };
+
+  const handleDelete = (id: string) => {
+    setDeletingId(id);
+    window.dispatchEvent(new Event("project:saving"));
+    remove.mutate({ id });
+  };
+
+  const handleDownload = (url: string, filename: string) => {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.click();
+  };
+
+  const handleDownloadAll = async () => {
+    if (attachments.length === 0) return;
+    setDownloadingAll(true);
+    try {
+      for (const f of attachments) {
+        // stagger slightly so browser doesn't block multiple downloads
+        await new Promise((res) => setTimeout(res, 300));
+        handleDownload(f.url, f.filename);
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
+  };
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   if (isLoading) {
     return (
@@ -40,18 +122,56 @@ export function AttachmentsTab({ projectId }: Props) {
   return (
     <div className="flex flex-col gap-4">
       {/* Upload zone */}
-      <div className="border-border hover:bg-muted/50 flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center transition-colors">
-        <Upload size={18} className="text-muted-foreground" />
+      <div
+        className="border-border hover:bg-muted/50 flex cursor-pointer flex-col items-center gap-2 rounded-xl border border-dashed p-8 text-center transition-colors"
+        onClick={() => inputRef.current?.click()}
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={handleDrop}
+      >
+        {uploading ? (
+          <Loader2 size={18} className="text-muted-foreground animate-spin" />
+        ) : (
+          <Upload size={18} className="text-muted-foreground" />
+        )}
         <p className="text-muted-foreground text-sm">
-          Drop files here or{" "}
-          <span className="text-foreground cursor-pointer underline underline-offset-2">
-            browse
-          </span>
+          {uploading
+            ? "Uploading..."
+            : <>Drop files here or{" "}
+                <span className="text-foreground underline underline-offset-2">browse</span>
+              </>
+          }
         </p>
-        <p className="text-muted-foreground text-xs">
-          PDF, images, docs up to 50MB
-        </p>
+        <p className="text-muted-foreground text-xs">PDF, images, docs up to 50MB</p>
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => void handleFiles(e.target.files)}
+        />
       </div>
+
+      {/* Header row */}
+      {attachments.length > 0 && (
+        <div className="flex items-center justify-between">
+          <p className="text-muted-foreground text-xs">
+            {attachments.length} file{attachments.length !== 1 ? "s" : ""}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={() => void handleDownloadAll()}
+            disabled={downloadingAll}
+          >
+            {downloadingAll
+              ? <Loader2 size={12} className="animate-spin" />
+              : <Download size={12} />
+            }
+            Download all
+          </Button>
+        </div>
+      )}
 
       {/* File list */}
       {attachments.length === 0 ? (
@@ -74,31 +194,48 @@ export function AttachmentsTab({ projectId }: Props) {
                   {(f.size / 1024).toFixed(0)} KB
                 </p>
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="text-muted-foreground h-7 w-7"
-                  >
-                    <MoreHorizontal size={14} />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem asChild>
-                    <a href={f.url} target="_blank" rel="noopener noreferrer">
-                      Download
-                    </a>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem className="text-destructive">
-                    Delete
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+
+              {deletingId === f.id ? (
+                <Loader2 size={14} className="text-muted-foreground animate-spin" />
+              ) : (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="text-muted-foreground h-7 w-7">
+                      <MoreHorizontal size={14} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleDownload(f.url, f.filename)}>
+                      <Download size={13} className="mr-2" /> Download
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => handleDelete(f.id)}
+                    >
+                      <Trash2 size={13} className="mr-2" /> Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
           ))}
         </div>
       )}
     </div>
   );
+}
+
+// ── Util ───────────────────────────────────────────────────────────────────────
+
+function toBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      // strip the data URL prefix (e.g. "data:image/png;base64,")
+      resolve(result.split(",")[1] ?? "");
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
