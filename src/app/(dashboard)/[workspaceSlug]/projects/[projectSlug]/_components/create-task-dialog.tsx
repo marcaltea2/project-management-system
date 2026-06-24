@@ -54,7 +54,8 @@ import {
   ALL_ATTACHMENT_ACCEPT,
   ALL_ATTACHMENT_TYPES,
 } from "~/lib/constants/file-types";
-import { TASK_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
+import { PRIORITY_OPTIONS } from "~/lib/constants/project-constants";
+import { TASK_STATUS_OPTIONS } from "~/lib/constants/task-constants";
 import { getFileIcon } from "~/lib/helper/get-file-icon";
 import { truncateFileName } from "~/lib/helper/truncate-filename";
 

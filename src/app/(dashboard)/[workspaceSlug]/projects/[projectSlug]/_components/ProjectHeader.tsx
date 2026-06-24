@@ -35,7 +35,7 @@ import {
 import { cn } from "~/lib/utils";
 import { toSlug } from "~/lib/to-slug";
 import type { ProjectData } from "~/types";
-import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
+import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/constants/project-constants";
 import { formatDistanceToNow } from "date-fns";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "~/trpc/react";

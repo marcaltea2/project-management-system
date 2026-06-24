@@ -4,10 +4,10 @@
 import { useState } from "react";
 import { ProjectHeader } from "./ProjectHeader";
 import { ProjectTabs } from "./ProjectTabs";
-import { DetailsTab } from "./tabs/DetailsTab";
-import { AttachmentsTab } from "./tabs/AttachmentsTab";
-import { MembersTab } from "./tabs/MembersTab";
-import { TasksTab } from "./tabs/TasksTab";
+import { DetailsTab } from "./tabs/details/DetailsTab";
+import { AttachmentsTab } from "./tabs/attachments/AttachmentsTab";
+import { MembersTab } from "./tabs/members/MembersTab";
+import { TasksTab } from "./tabs/tasks/TasksTab";
 import type { ProjectData } from "~/types";
 export type TabId = "details" | "attachments" | "members" | "tasks";
 

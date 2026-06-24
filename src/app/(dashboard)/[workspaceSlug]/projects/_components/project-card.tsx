@@ -8,7 +8,6 @@ import { Calendar, FolderKanban, Link2, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 
 // ===== Types =====
-import type { Priority, ProjectStatus } from "@prisma/client";
 import type { ProjectListItem } from "~/types";
 
 // ===== Components =====
@@ -33,7 +32,10 @@ import { cn } from "~/lib/utils";
 import {
   PRIORITY_OPTIONS,
   PROJECT_STATUS_OPTIONS,
-} from "~/lib/project-options";
+  PROJECT_STATUS_COLOR,
+  PRIORITY_COLOR,
+
+} from "~/lib/constants/project-constants";
 
 type Props = {
   project: ProjectListItem;
@@ -51,26 +53,6 @@ export function ProjectCard({
   onDuplicate,
 }: Props) {
   const router = useRouter();
-
-  const statusColor = (status: ProjectStatus) =>
-    ({
-      ACTIVE:
-        "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400",
-      COMPLETED:
-        "bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-400",
-      ON_HOLD:
-        "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-400",
-      ARCHIVED: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
-    })[status];
-
-  const priorityColor = (priority: Priority) =>
-    ({
-      LOW: "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-400",
-      MEDIUM:
-        "bg-orange-50 text-orange-700 dark:bg-orange-950 dark:text-orange-400",
-      HIGH: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-400",
-      URGENT: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
-    })[priority];
 
   return (
     <Card
@@ -151,14 +133,14 @@ export function ProjectCard({
         <div className="flex items-center justify-between">
           {/* Status + Priority badges */}
           <div className="flex items-center gap-1.5">
-            <Badge className={cn("text-[10px]", statusColor(project.status))}>
+            <Badge className={cn("text-[10px]", PROJECT_STATUS_COLOR[project.status])}>
               {
                 PROJECT_STATUS_OPTIONS.find((s) => s.value === project.status)
                   ?.label
               }
             </Badge>
             <Badge
-              className={cn("text-[10px]", priorityColor(project.priority))}
+              className={cn("text-[10px]", PRIORITY_COLOR[project.priority])}
             >
               {
                 PRIORITY_OPTIONS.find((p) => p.value === project.priority)

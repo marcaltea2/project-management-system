@@ -59,7 +59,7 @@ import {
   PROJECT_STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   COLOR_OPTIONS,
-} from "~/lib/project-options";
+} from "~/lib/constants/project-constants";
 import { getFileIcon } from "~/lib/helper/get-file-icon";
 import { truncateFileName } from "~/lib/helper/truncate-filename";
 

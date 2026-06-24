@@ -15,7 +15,7 @@ import {
 } from "~/components/ui/select";
 import type { ProjectData } from "~/types";
 import { format } from "date-fns";
-import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/project-options";
+import { PROJECT_STATUS_OPTIONS, PRIORITY_OPTIONS } from "~/lib/constants/project-constants";
 import { toSlug } from "~/lib/to-slug";
 import { api } from "~/trpc/react";
 import { toast } from "sonner";
@@ -136,7 +136,7 @@ export function DetailsTab({ project }: { project: ProjectData }) {
         dueDate: patch.dueDate ?? patch.dueDate,
       });
     },
-    [update, project.id, project.name, description, status, priority, dueDate],
+    [update, project.id, project.name, description, status, priority],
   );
 
   useEffect(() => {
