@@ -66,28 +66,50 @@ export const projectRouter = createTRPCRouter({
         members: z.array(z.string()).optional(),
       }),
     )
-    .mutation(async ({ ctx, input }) => {
-      if (input.members) {
-        // Find removed members by comparing current vs incoming
-        const currentMembers = await ctx.db.projectMember.findMany({
-          where: { projectId: input.id },
-          select: { userId: true },
+     .mutation(async ({ ctx, input }) => {
+    if (input.members) {
+      const currentMembers = await ctx.db.projectMember.findMany({
+        where: { projectId: input.id },
+        select: { userId: true, role: true },
+      });
+
+      // Find the owner so we can preserve them
+      const ownerMember = currentMembers.find(
+        (m) => m.role === ProjectRole.OWNER,
+      );
+
+      const removedUserIds = currentMembers
+        .map((m) => m.userId)
+        .filter((userId) => !input.members!.includes(userId));
+
+      if (removedUserIds.length > 0) {
+        await ctx.db.taskMember.deleteMany({
+          where: {
+            task: { projectId: input.id },
+            userId: { in: removedUserIds },
+          },
         });
-
-        const removedUserIds = currentMembers
-          .map((m) => m.userId)
-          .filter((userId) => !input.members!.includes(userId));
-
-        if (removedUserIds.length > 0) {
-          // Remove them from all tasks in this project
-          await ctx.db.taskMember.deleteMany({
-            where: {
-              task: { projectId: input.id },
-              userId: { in: removedUserIds },
-            },
-          });
-        }
       }
+
+      // Ensure the owner is always in the members list
+      const ownerIncluded = ownerMember
+        ? input.members.includes(ownerMember.userId)
+        : false;
+
+      const membersToCreate = [
+        // Preserve owner if not already in input.members
+        ...(ownerMember && !ownerIncluded
+          ? [{ userId: ownerMember.userId, role: ProjectRole.OWNER }]
+          : []),
+        // All input members: owner keeps OWNER role, others get MEMBER
+        ...input.members.map((userId) => ({
+          userId,
+          role:
+            userId === ownerMember?.userId
+              ? ProjectRole.OWNER
+              : ProjectRole.MEMBER,
+        })),
+      ];
 
       return ctx.db.project.update({
         where: { id: input.id },
@@ -100,19 +122,29 @@ export const projectRouter = createTRPCRouter({
           dueDate: input.dueDate,
           coverColor: input.coverColor,
           updatedById: ctx.session.user.id,
-          ...(input.members && {
-            members: {
-              deleteMany: {},
-              create: input.members.map((userId) => ({
-                userId,
-                role: ProjectRole.MEMBER,
-              })),
-            },
-          }),
+          members: {
+            deleteMany: {},
+            create: membersToCreate,
+          },
         },
       });
-    }),
+    }
 
+    return ctx.db.project.update({
+      where: { id: input.id },
+      data: {
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+        status: input.status,
+        priority: input.priority,
+        dueDate: input.dueDate,
+        coverColor: input.coverColor,
+        updatedById: ctx.session.user.id,
+      },
+    });
+  }),
+  
   delete: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
